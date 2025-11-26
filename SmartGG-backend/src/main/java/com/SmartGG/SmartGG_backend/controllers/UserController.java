@@ -1,32 +1,40 @@
 package com.SmartGG.SmartGG_backend.controllers;
 
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.GetMapping;
-
-import com.SmartGG.SmartGG_backend.domain.user;
-import com.SmartGG.SmartGG_backend.services.testeService;
+import com.SmartGG.SmartGG_backend.Mysql.model.UserModel;
+import com.SmartGG.SmartGG_backend.dto.LoginDTO;
+import com.SmartGG.SmartGG_backend.dto.RegisterUserDTO;
+import com.SmartGG.SmartGG_backend.dto.UserResponseDTO;
 import com.SmartGG.SmartGG_backend.services.UserService;
+
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/users")
 public class UserController {
 
-    private final UserService userService;
+    private final UserService service;
 
-    public UserController(UserService userService) {
-        this.userService = userService;
+    public UserController(UserService service) {
+        this.service = service;
     }
 
-    @PostMapping
-    public User create(@RequestBody User user) {
-        return userService.create(user);
+    @PostMapping("/register")
+    public UserModel register(@RequestBody RegisterUserDTO dto) {
+        return service.register(dto);
     }
 
     @GetMapping
-    public java.util.List<User> list() {
-        return userService.findAll();
+    public List<UserModel> getAllUsers() {
+        return service.getAllUsers();
+    }
+    
+    @GetMapping("/{id}")
+    public UserResponseDTO getUserById(@PathVariable Long id) {
+        return service.getUserById(id);
+    }
+    @PostMapping("/login")
+    public UserResponseDTO login(@RequestBody LoginDTO dto) {
+        return service.login(dto);
     }
 }

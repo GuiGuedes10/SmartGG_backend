@@ -1,14 +1,6 @@
-package com.SmartGG.SmartGG_backend.domain;
+package com.SmartGG.SmartGG_backend.dto;
 
-import jakarta.persistence.*;
-
-@Entity(name = "DomainUser")
-@Table(name = "users")
-public class User {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class RegisterUserDTO {
 
     private String email;
     private String password;
@@ -16,24 +8,17 @@ public class User {
     private String tagLine;
     private String puuid;
 
-    public User() {}
-
-    public User(String email, String password, String gameName, String tagLine, String puuid) {
-        this.email = email;
-        this.password = password;
-        this.gameName = gameName;
-        this.tagLine = tagLine;
-        this.puuid = puuid;
-    }
-
-    public Long getId() {
-        return id;
-    }
     public String getEmail() {
         return email;
     }
     public void setEmail(String email) {
         this.email = email;
+    }
+    public void setPuuid(String puuid) {
+        this.puuid = puuid;
+    }
+    public String getPuuid() {
+        return puuid;
     }
     public String getPassword() {
         return password;
@@ -52,11 +37,5 @@ public class User {
     }
     public void setTagLine(String tagLine) {
         this.tagLine = tagLine;
-    }
-    public String getPuuid() {
-        return puuid;
-    }
-    public void setPuuid(String puuid) {
-        this.puuid = puuid;
     }
 }

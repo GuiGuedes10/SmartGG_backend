@@ -1,31 +1,36 @@
-package com.SmartGG.SmartGG_backend.domain;
+package com.SmartGG.SmartGG_backend.Mysql.model;
 
 import jakarta.persistence.*;
 
-@Entity(name = "DomainUser")
+@Entity(name = "MysqlUser")
 @Table(name = "users")
-public class User {
+public class UserModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(unique = true)
     private Long id;
 
+    @Column(unique = true)
     private String email;
+
     private String password;
+
     private String gameName;
+
     private String tagLine;
+
     private String puuid;
 
-    public User() {}
+    public UserModel() {}
 
-    public User(String email, String password, String gameName, String tagLine, String puuid) {
+    public UserModel(String email, String password, String gameName, String tagLine, String puuid) {
         this.email = email;
         this.password = password;
         this.gameName = gameName;
         this.tagLine = tagLine;
         this.puuid = puuid;
     }
-
     public Long getId() {
         return id;
     }
