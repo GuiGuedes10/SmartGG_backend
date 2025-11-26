@@ -4,18 +4,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.SmartGG.SmartGG_backend.domain.User;
 import com.SmartGG.SmartGG_backend.dto.RegisterUserDTO;
 import com.SmartGG.SmartGG_backend.Mysql.repositories.UserRepository;
 import com.SmartGG.SmartGG_backend.dto.UserResponseDTO;
 import com.SmartGG.SmartGG_backend.dto.LoginDTO;
 import com.SmartGG.SmartGG_backend.Mysql.model.UserModel;
 
-
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
 public class UserService {
@@ -23,9 +21,11 @@ public class UserService {
     private final UserRepository userRepository;
     private final RestTemplate rest = new RestTemplate();
     private final String API_KEY = "RGAPI-07b683e5-2b6e-4b0c-89bf-58fbb5a5cc58";
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public UserModel register(RegisterUserDTO dto) {
@@ -44,7 +44,7 @@ public class UserService {
 
         UserModel user = new UserModel(
             dto.getEmail(),
-            dto.getPassword(),
+            passwordEncoder.encode(dto.getPassword()),
             response.get("gameName"),
             response.get("tagLine"),
             response.get("puuid")
@@ -74,7 +74,7 @@ public class UserService {
         UserModel user = userRepository.findByEmail(dto.getEmail())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
 
-        if (!user.getPassword().equals(dto.getPassword())) {
+        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Senha incorreta");
         }
 
