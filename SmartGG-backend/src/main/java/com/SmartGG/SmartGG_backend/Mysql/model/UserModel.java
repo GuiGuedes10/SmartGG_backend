@@ -1,6 +1,11 @@
 package com.SmartGG.SmartGG_backend.Mysql.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity(name = "MysqlUser")
 @Table(name = "users")
@@ -22,14 +27,34 @@ public class UserModel {
 
     private String puuid;
 
+    private Long iconId;
+
+    private String level;
+
+    private String tier;
+
+    private String encryptedAccountId;
+
+    @Column(name = "user_rank")
+    private String rank;
+
+    private Integer leaguePoints;
+
+
     public UserModel() {}
 
-    public UserModel(String email, String password, String gameName, String tagLine, String puuid) {
+    public UserModel(String email, String password, String gameName, String tagLine, String puuid, Long iconId, String level, String tier, String rank, Integer leaguePoints, String encryptedAccountId) {
         this.email = email;
         this.password = password;
         this.gameName = gameName;
         this.tagLine = tagLine;
         this.puuid = puuid;
+        this.iconId = iconId;
+        this.level = level;
+        this.tier = tier;
+        this.rank = rank;
+        this.leaguePoints = leaguePoints;
+        this.encryptedAccountId = encryptedAccountId;
     }
     public Long getId() {
         return id;
@@ -64,4 +89,41 @@ public class UserModel {
     public void setPuuid(String puuid) {
         this.puuid = puuid;
     }
+    public Long getIconId() {
+        return iconId;
+    }
+    public void setIconId(Long iconId) {
+        this.iconId = iconId;
+    }
+    public String getLevel() {
+        return level;
+    }
+    public void setLevel(String level) {
+        this.level = level;
+    }
+    public String getTier() {
+        return tier;
+    }
+    public void setTier(String tier) {
+        this.tier = tier;
+    }
+    public String getRank() {
+        return rank;
+    }
+    public void setRank(String rank) {
+        this.rank = rank;
+    }
+    public Integer getLeaguePoints() {
+        return leaguePoints;
+    }
+    public void setLeaguePoints(Integer leaguePoints) {
+        this.leaguePoints = leaguePoints;
+    }
+    public String getEncryptedAccountId() {
+        return encryptedAccountId;
+    }
+    public void setEncryptedAccountId(String encryptedAccountId) {
+        this.encryptedAccountId = encryptedAccountId;
+    }
+
 }
