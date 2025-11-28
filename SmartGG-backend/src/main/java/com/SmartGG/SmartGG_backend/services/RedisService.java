@@ -21,4 +21,16 @@ public class RedisService {
     public void delete(String key) {
         redisTemplate.delete(key);
     }
+
+    public void putHash(String hashName, String key, Object value) {
+        redisTemplate.opsForHash().put(hashName, key, value);
+    }
+
+    public Object getHash(String hashName, String key) {
+        return redisTemplate.opsForHash().get(hashName, key);
+    }
+
+    public void deleteHash(String hashName, String key) {
+        redisTemplate.opsForHash().delete(hashName, key);
+    }
 }

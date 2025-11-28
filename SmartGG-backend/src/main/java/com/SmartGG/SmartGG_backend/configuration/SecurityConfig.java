@@ -16,6 +16,7 @@ public class SecurityConfig {
             .csrf().disable() // desativa CSRF para facilitar teste
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/users/**").permitAll() // libera todos endpoints /users/*
+                .requestMatchers("/champion/**").permitAll() // libera todos endpoints /champion/*
                 .anyRequest().authenticated() // outros endpoints exigem login
             )
             .httpBasic(); // habilita autenticação básica (opcional)

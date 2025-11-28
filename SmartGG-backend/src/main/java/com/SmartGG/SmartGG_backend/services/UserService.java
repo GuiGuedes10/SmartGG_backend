@@ -1,5 +1,7 @@
 package com.SmartGG.SmartGG_backend.services;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +21,7 @@ import com.SmartGG.SmartGG_backend.configuration.riotConfig;
 import com.SmartGG.SmartGG_backend.dto.LoginDTO;
 import com.SmartGG.SmartGG_backend.dto.RegisterUserDTO;
 import com.SmartGG.SmartGG_backend.dto.UserResponseDTO;
+import com.SmartGG.SmartGG_backend.dto.UserWithMasteryDTO;
 
 @Service
 public class UserService {
@@ -27,13 +30,15 @@ public class UserService {
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ChampionService championService;
 
     private final riotConfig riotConfig;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, riotConfig riotConfig) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, riotConfig riotConfig, ChampionService championService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.riotConfig = riotConfig;
+        this.championService = championService;
     }
 
     @SuppressWarnings("unchecked")
@@ -134,7 +139,7 @@ public class UserService {
         return userRepository.findAll();
     }
 
-    public UserResponseDTO getUserById(Long id) {
+    public UserWithMasteryDTO getUserById(Long id) {
         UserModel user = userRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
 
@@ -170,17 +175,43 @@ public class UserService {
             }
         }
 
-        return new UserResponseDTO(
-            user.getId(),
-            user.getEmail(),
-            user.getGameName(),
-            user.getTagLine(),
+        url = String.format(
+            "https://br1.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/%s/top?count=3&api_key=%s",
             user.getPuuid(),
-            user.getIconId(),
-            user.getLevel(),
-            user.getTier(),
-            user.getRank(),
-            user.getLeaguePoints()
+            API_KEY
+        );
+
+        List<Map<String, Object>> masteryResponse = rest.getForObject(url, List.class);
+
+        List<Map<String, Object>> masteryWithNames = new ArrayList<>();
+
+        for (Map<String, Object> mastery : masteryResponse) {
+            String championId = String.valueOf(mastery.get("championId"));
+            String championName = championService.getChampionName(championId);
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("championId", championId);
+            item.put("championName", championName);
+            item.put("championLevel", mastery.get("championLevel"));
+            item.put("championPoints", mastery.get("championPoints"));
+            masteryWithNames.add(item);
+        }
+
+
+        return new UserWithMasteryDTO(
+            new UserResponseDTO(
+                user.getId(),
+                user.getEmail(),
+                user.getGameName(),
+                user.getTagLine(),
+                user.getPuuid(),
+                user.getIconId(),
+                user.getLevel(),
+                user.getTier(),
+                user.getRank(),
+                user.getLeaguePoints()
+            ),
+            masteryWithNames
         );
     }
 
@@ -237,4 +268,81 @@ public class UserService {
             user.getLeaguePoints()
         );
     }
+
+    public Map<String, Object> getChampionAverages(String puuid, String championId) {
+    String API_KEY = riotConfig.getApiKey();
+
+        String matchListUrl = String.format(
+            "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?queue=420&start=0&count=60&api_key=%s",
+            puuid, API_KEY
+        );
+
+        List<String> matchIds = rest.getForObject(matchListUrl, List.class);
+        if (matchIds == null || matchIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhuma partida encontrada");
+        }
+
+        int gamesPlayed = 0;
+        double totalKills = 0;
+        double totalDeaths = 0;
+        double totalAssists = 0;
+        double totalDamage = 0;
+        double totalGold = 0;
+        double totalCs = 0;
+
+        for (String matchId : matchIds) {
+
+            String matchUrl = String.format(
+                "https://americas.api.riotgames.com/lol/match/v5/matches/%s?api_key=%s", 
+                matchId, API_KEY
+            );
+
+            Map<String, Object> match = rest.getForObject(matchUrl, Map.class);
+            if (match == null) continue;
+
+            Map<String, Object> info = (Map<String, Object>) match.get("info");
+            List<Map<String, Object>> participants = (List<Map<String, Object>>) info.get("participants");
+
+            Map<String, Object> player = participants.stream()
+                .filter(p -> puuid.equals(p.get("puuid")))
+                .findFirst()
+                .orElse(null);
+
+            if (player == null) continue;
+
+            String playedChampionId = String.valueOf(player.get("championId"));
+
+            if (!playedChampionId.equals(championId)) {
+                continue;
+            }
+
+            gamesPlayed++;
+
+            totalKills += ((Number) player.get("kills")).doubleValue();
+            totalDeaths += ((Number) player.get("deaths")).doubleValue();
+            totalAssists += ((Number) player.get("assists")).doubleValue();
+            totalDamage += ((Number) player.get("totalDamageDealtToChampions")).doubleValue();
+            totalGold += ((Number) player.get("goldEarned")).doubleValue();
+            totalCs += ((Number) player.get("totalMinionsKilled")).doubleValue() 
+                    + ((Number) player.get("neutralMinionsKilled")).doubleValue();
+        }
+
+        if (gamesPlayed < 10) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Usuário precisa ter jogado pelo menos 10 partidas com esse campeão nas últimas 100 solo/duo");
+        }
+
+        Map<String, Object> averages = new HashMap<>();
+        averages.put("gamesPlayed", gamesPlayed);
+        averages.put("kills", totalKills / gamesPlayed);
+        averages.put("deaths", totalDeaths / gamesPlayed);
+        averages.put("assists", totalAssists / gamesPlayed);
+        averages.put("kda", (totalKills + totalAssists) / Math.max(1, totalDeaths / gamesPlayed));
+        averages.put("damage", totalDamage / gamesPlayed);
+        averages.put("gold", totalGold / gamesPlayed);
+        averages.put("cs", totalCs / gamesPlayed);
+
+        return averages;
+    }
+
 }
