@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "SmartGG_Backend_RouteTestersBruno",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
