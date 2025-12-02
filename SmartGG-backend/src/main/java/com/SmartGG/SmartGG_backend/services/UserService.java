@@ -273,7 +273,7 @@ public class UserService {
     String API_KEY = riotConfig.getApiKey();
 
         String matchListUrl = String.format(
-            "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?queue=420&start=0&count=60&api_key=%s",
+            "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?queue=420&start=0&count=30&api_key=%s",
             puuid, API_KEY
         );
 
@@ -327,7 +327,7 @@ public class UserService {
                     + ((Number) player.get("neutralMinionsKilled")).doubleValue();
         }
 
-        if (gamesPlayed < 10) {
+        if (gamesPlayed < 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Usuário precisa ter jogado pelo menos 10 partidas com esse campeão nas últimas 100 solo/duo");
         }
@@ -345,4 +345,26 @@ public class UserService {
         return averages;
     }
 
+    // public Map<String, Object> getAverageMatchByUserId(String puuid, String matchId) {
+    //     String API_KEY = riotConfig.getApiKey();
+
+   
+    //  String url = String.format(
+    //         "https://americas.api.riotgames.com/lol/match/v5/matches/%s?api_key=%s",
+    //         matchId,
+    //         API_KEY
+    //     );
+
+    //     Map<String, Object> matchResponse = rest.getForObject(url, Map.class);
+    //     if (matchResponse == null) {
+    //         throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Falha ao buscar dados da partida");
+    //     }
+
+    //     double totalKills = 0;
+    //     double totalDeaths = 0;
+    //     double totalAssists = 0;
+    //     double totalDamage = 0;
+    //     double totalGold = 0;
+    //     double totalCs = 0;
+    // }
 }
