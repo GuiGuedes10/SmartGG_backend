@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -158,9 +159,6 @@ public class UserService {
 
         String API_KEY = riotConfig.getApiKey();
 
-        // =======================
-        // 1. Atualizar Summoner
-        // =======================
         String url = String.format(
             "https://br1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/%s?api_key=%s",
             user.getPuuid(), API_KEY
@@ -313,7 +311,7 @@ public class UserService {
     }
 
     public Map<String, Object> getChampionAverages(String puuid, String championId) {
-    String API_KEY = riotConfig.getApiKey();
+        String API_KEY = riotConfig.getApiKey();
 
         String matchListUrl = String.format(
             "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?queue=420&start=0&count=30&api_key=%s",
@@ -330,7 +328,7 @@ public class UserService {
         double totalDeaths = 0;
         double totalAssists = 0;
         double totalDamage = 0;
-        double totalGold = 0;
+        double totalGoldPerMinute = 0;
         double totalCs = 0;
 
         for (String matchId : matchIds) {
@@ -354,10 +352,7 @@ public class UserService {
             if (player == null) continue;
 
             String playedChampionId = String.valueOf(player.get("championId"));
-
-            if (!playedChampionId.equals(championId)) {
-                continue;
-            }
+            if (!playedChampionId.equals(championId)) continue;
 
             gamesPlayed++;
 
@@ -365,9 +360,13 @@ public class UserService {
             totalDeaths += ((Number) player.get("deaths")).doubleValue();
             totalAssists += ((Number) player.get("assists")).doubleValue();
             totalDamage += ((Number) player.get("totalDamageDealtToChampions")).doubleValue();
-            totalGold += ((Number) player.get("goldEarned")).doubleValue();
             totalCs += ((Number) player.get("totalMinionsKilled")).doubleValue() 
                     + ((Number) player.get("neutralMinionsKilled")).doubleValue();
+
+            double gameDurationMinutes = ((Number) info.get("gameDuration")).doubleValue() / 60.0;
+            double gold = ((Number) player.get("goldEarned")).doubleValue();
+            double goldPerMinute = gameDurationMinutes > 0 ? gold / gameDurationMinutes : 0;
+            totalGoldPerMinute += goldPerMinute;
         }
 
         if (gamesPlayed < 5) {
@@ -382,11 +381,15 @@ public class UserService {
         averages.put("assists", totalAssists / gamesPlayed);
         averages.put("kda", (totalKills + totalAssists) / Math.max(1, totalDeaths / gamesPlayed));
         averages.put("damage", totalDamage / gamesPlayed);
-        averages.put("gold", totalGold / gamesPlayed);
+        averages.put("goldPerMinute", totalGoldPerMinute / gamesPlayed);
         averages.put("cs", totalCs / gamesPlayed);
 
         return averages;
     }
+
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     public List<Map<String, Object>> getLastMatches(String puuid, int start) {
 
@@ -415,10 +418,21 @@ public class UserService {
 
             for (String matchId : matchIds) {
 
-                String matchUrl =
-                        "https://americas.api.riotgames.com/lol/match/v5/matches/"
-                                + matchId
-                                + "?api_key=" + apiKey;
+            String redisKey = "userMatches:" + puuid; 
+
+            Boolean exists = redisTemplate.opsForHash().hasKey(redisKey, matchId);
+            if (Boolean.TRUE.equals(exists)) {
+                Map<String, Object> cachedMatch =
+                        (Map<String, Object>) redisTemplate.opsForHash().get(redisKey, matchId);
+
+                userMatches.add(cachedMatch);
+                continue;
+            }
+
+
+                String matchUrl = "https://americas.api.riotgames.com/lol/match/v5/matches/"
+                        + matchId
+                        + "?api_key=" + apiKey;
 
                 ResponseEntity<String> matchResponse = restTemplate.exchange(
                         matchUrl,
@@ -440,7 +454,6 @@ public class UserService {
                 if (user != null) {
                     Map<String, Object> filtered = new HashMap<>();
 
-                    // ==================== SUMMONER SPELLS ====================
                     Integer summoner1Id = (Integer) user.get("summoner1Id");
                     Integer summoner2Id = (Integer) user.get("summoner2Id");
 
@@ -453,7 +466,6 @@ public class UserService {
                     filtered.put("summoner1Name", summoner1Name);
                     filtered.put("summoner2Name", summoner2Name);
 
-                    // ==================== INFO BÁSICA ====================
                     filtered.put("matchId", matchId);
                     filtered.put("championName", user.get("championName"));
                     filtered.put("championId", user.get("championId"));
@@ -467,7 +479,6 @@ public class UserService {
                     filtered.put("queueId", info.get("queueId"));
                     filtered.put("gameEndTimestamp", info.get("gameEndTimestamp"));
 
-                    // ==================== ITENS COMPRADOS ====================
                     filtered.put("item0", user.get("item0"));
                     filtered.put("item1", user.get("item1"));
                     filtered.put("item2", user.get("item2"));
@@ -476,14 +487,12 @@ public class UserService {
                     filtered.put("item5", user.get("item5"));
                     filtered.put("item6", user.get("item6"));
 
-                    // ==================== RUNAS ====================
                     Map<String, Object> perks = (Map<String, Object>) user.get("perks");
                     if (perks != null) {
                         List<Map<String, Object>> styles = (List<Map<String, Object>>) perks.get("styles");
 
                         if (styles != null && !styles.isEmpty()) {
 
-                            // PRIMARY TREE
                             Map<String, Object> primary = styles.get(0);
                             filtered.put("primaryStyle", primary.get("style"));
 
@@ -501,7 +510,6 @@ public class UserService {
                                 }
                             }
 
-                            // SECONDARY TREE
                             if (styles.size() > 1) {
                                 Map<String, Object> secondary = styles.get(1);
                                 filtered.put("secondaryStyle", secondary.get("style"));
@@ -523,6 +531,8 @@ public class UserService {
                         }
                     }
 
+                    redisTemplate.opsForHash().put(redisKey, matchId, filtered);
+
                     userMatches.add(filtered);
                 }
             }
@@ -533,6 +543,81 @@ public class UserService {
             e.printStackTrace();
             return Collections.emptyList();
         }
+    }
+
+
+
+    public Map<String, Object> getUserAverages(String puuid) {
+        String API_KEY = riotConfig.getApiKey();
+
+        String matchListUrl = String.format(
+            "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/%s/ids?queue=420&start=0&count=30&api_key=%s",
+            puuid, API_KEY
+        );
+
+        List<String> matchIds = rest.getForObject(matchListUrl, List.class);
+        if (matchIds == null || matchIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhuma partida encontrada");
+        }
+
+        int gamesPlayed = 0;
+        double totalKills = 0;
+        double totalDeaths = 0;
+        double totalAssists = 0;
+        double totalDamage = 0;
+        double totalGoldPerMinute = 0;
+        double totalCs = 0;
+
+        for (String matchId : matchIds) {
+            String matchUrl = String.format(
+                "https://americas.api.riotgames.com/lol/match/v5/matches/%s?api_key=%s", 
+                matchId, API_KEY
+            );
+
+            Map<String, Object> match = rest.getForObject(matchUrl, Map.class);
+            if (match == null) continue;
+
+            Map<String, Object> info = (Map<String, Object>) match.get("info");
+            List<Map<String, Object>> participants = (List<Map<String, Object>>) info.get("participants");
+
+            Map<String, Object> player = participants.stream()
+                .filter(p -> puuid.equals(p.get("puuid")))
+                .findFirst()
+                .orElse(null);
+
+            if (player == null) continue;
+
+            gamesPlayed++;
+
+            totalKills += ((Number) player.get("kills")).doubleValue();
+            totalDeaths += ((Number) player.get("deaths")).doubleValue();
+            totalAssists += ((Number) player.get("assists")).doubleValue();
+            totalDamage += ((Number) player.get("totalDamageDealtToChampions")).doubleValue();
+            totalCs += ((Number) player.get("totalMinionsKilled")).doubleValue() 
+                    + ((Number) player.get("neutralMinionsKilled")).doubleValue();
+
+            double gameDurationMinutes = ((Number) info.get("gameDuration")).doubleValue() / 60.0;
+            double gold = ((Number) player.get("goldEarned")).doubleValue();
+            double goldPerMinute = gameDurationMinutes > 0 ? gold / gameDurationMinutes : 0;
+            totalGoldPerMinute += goldPerMinute;
+        }
+
+        if (gamesPlayed == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Nenhuma partida válida encontrada para o jogador.");
+        }
+
+        Map<String, Object> averages = new HashMap<>();
+        averages.put("gamesPlayed", gamesPlayed);
+        averages.put("kills", totalKills / gamesPlayed);
+        averages.put("deaths", totalDeaths / gamesPlayed);
+        averages.put("assists", totalAssists / gamesPlayed);
+        averages.put("kda", (totalKills + totalAssists) / Math.max(1, totalDeaths));
+        averages.put("damage", totalDamage / gamesPlayed);
+        averages.put("goldPerMinute", totalGoldPerMinute / gamesPlayed); // média do GPM
+        averages.put("cs", totalCs / gamesPlayed);
+
+        return averages;
     }
 
 }

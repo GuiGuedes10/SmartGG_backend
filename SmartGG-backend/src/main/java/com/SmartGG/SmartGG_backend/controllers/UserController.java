@@ -57,5 +57,10 @@ public class UserController {
     public List<Map<String, Object>> getLastMatches(@PathVariable String puuid, @RequestParam int start) {
         return service.getLastMatches(puuid, start);
     }
+
+    @GetMapping("/averages/{puuid}")
+    public Map<String, Object> getUserAverages(@PathVariable String puuid) {
+        return service.getUserAverages(puuid);
+    }
     
 }
