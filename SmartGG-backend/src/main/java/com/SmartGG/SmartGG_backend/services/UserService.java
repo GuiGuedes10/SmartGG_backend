@@ -1,6 +1,7 @@
 package com.SmartGG.SmartGG_backend.services;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import com.SmartGG.SmartGG_backend.dto.LoginDTO;
 import com.SmartGG.SmartGG_backend.dto.RegisterUserDTO;
 import com.SmartGG.SmartGG_backend.dto.UserResponseDTO;
 import com.SmartGG.SmartGG_backend.dto.UserWithMasteryDTO;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class UserService {
@@ -47,6 +49,7 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email já cadastrado");
         }
         String API_KEY = riotConfig.getApiKey();
+        System.out.println("Using Riot API Key: " + API_KEY);
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Riot-Token", API_KEY);
@@ -140,21 +143,26 @@ public class UserService {
     }
 
     public UserWithMasteryDTO getUserById(Long id) {
+
         UserModel user = userRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
 
-             String API_KEY = riotConfig.getApiKey();
+        String API_KEY = riotConfig.getApiKey();
 
+        // =======================
+        // 1. Atualizar Summoner
+        // =======================
         String url = String.format(
             "https://br1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/%s?api_key=%s",
-            user.getPuuid(),
-            API_KEY
+            user.getPuuid(), API_KEY
         );
 
         Map<String, Object> summonerResponse = rest.getForObject(url, Map.class);
+
         if (summonerResponse != null) {
             Long currentIconId = summonerResponse.get("profileIconId") != null
                 ? Long.valueOf(String.valueOf(summonerResponse.get("profileIconId"))) : null;
+
             String currentLevel = summonerResponse.get("summonerLevel") != null
                 ? String.valueOf(summonerResponse.get("summonerLevel")) : null;
 
@@ -176,9 +184,63 @@ public class UserService {
         }
 
         url = String.format(
+            "https://br1.api.riotgames.com/lol/league/v4/entries/by-puuid/%s?api_key=%s",
+            user.getPuuid(), API_KEY
+        );
+
+        List<Map<String, Object>> leagueEntries = rest.getForObject(url, List.class);
+
+        Integer wins = 0;
+        Integer losses = 0;
+        double winRate = 0.0;
+
+        if (leagueEntries != null && !leagueEntries.isEmpty()) {
+
+            Map<String, Object> soloQ = leagueEntries.stream()
+                .filter(entry -> "RANKED_SOLO_5x5".equals(entry.get("queueType")))
+                .findFirst()
+                .orElse(null);
+
+            if (soloQ != null) {
+
+                boolean updated = false;
+
+                String currentTier = (String) soloQ.get("tier");
+                String currentRank = (String) soloQ.get("rank");
+                Integer currentLP = soloQ.get("leaguePoints") != null
+                        ? Integer.valueOf(String.valueOf(soloQ.get("leaguePoints")))
+                        : null;
+
+                if (currentTier != null && !currentTier.equals(user.getTier())) {
+                    user.setTier(currentTier);
+                    updated = true;
+                }
+
+                if (currentRank != null && !currentRank.equals(user.getRank())) {
+                    user.setRank(currentRank);
+                    updated = true;
+                }
+
+                if (currentLP != null && !currentLP.equals(user.getLeaguePoints())) {
+                    user.setLeaguePoints(currentLP);
+                    updated = true;
+                }
+
+                if (updated) {
+                    userRepository.save(user);
+                }
+
+                wins = soloQ.get("wins") != null ? Integer.parseInt(soloQ.get("wins").toString()) : 0;
+                losses = soloQ.get("losses") != null ? Integer.parseInt(soloQ.get("losses").toString()) : 0;
+
+                winRate = (wins + losses) > 0
+                    ? (wins * 100.0 / (wins + losses))
+                    : 0.0;
+            }
+        }
+        url = String.format(
             "https://br1.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/%s/top?count=3&api_key=%s",
-            user.getPuuid(),
-            API_KEY
+            user.getPuuid(), API_KEY
         );
 
         List<Map<String, Object>> masteryResponse = rest.getForObject(url, List.class);
@@ -194,9 +256,10 @@ public class UserService {
             item.put("championName", championName);
             item.put("championLevel", mastery.get("championLevel"));
             item.put("championPoints", mastery.get("championPoints"));
+            item.put("lastPlayTime", mastery.get("lastPlayTime"));
+
             masteryWithNames.add(item);
         }
-
 
         return new UserWithMasteryDTO(
             new UserResponseDTO(
@@ -211,7 +274,10 @@ public class UserService {
                 user.getRank(),
                 user.getLeaguePoints()
             ),
-            masteryWithNames
+            masteryWithNames,
+            wins,
+            losses,
+            winRate
         );
     }
 
@@ -221,38 +287,6 @@ public class UserService {
 
         if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Senha incorreta");
-        }
-
-        String API_KEY = riotConfig.getApiKey();
-
-        String url = String.format(
-            "https://br1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/%s?api_key=%s",
-            user.getPuuid(),
-            API_KEY
-        );
-
-        Map<String, Object> summonerResponse = rest.getForObject(url, Map.class);
-        if (summonerResponse != null) {
-            Long currentIconId = summonerResponse.get("profileIconId") != null
-                ? Long.valueOf(String.valueOf(summonerResponse.get("profileIconId"))) : null;
-            String currentLevel = summonerResponse.get("summonerLevel") != null
-                ? String.valueOf(summonerResponse.get("summonerLevel")) : null;
-
-            boolean updated = false;
-
-            if (currentIconId != null && !currentIconId.equals(user.getIconId())) {
-                user.setIconId(currentIconId);
-                updated = true;
-            }
-
-            if (currentLevel != null && !currentLevel.equals(user.getLevel())) {
-                user.setLevel(currentLevel);
-                updated = true;
-            }
-
-            if (updated) {
-                userRepository.save(user);
-            }
         }
 
         return new UserResponseDTO(
@@ -345,26 +379,130 @@ public class UserService {
         return averages;
     }
 
-    // public Map<String, Object> getAverageMatchByUserId(String puuid, String matchId) {
-    //     String API_KEY = riotConfig.getApiKey();
+    public List<Map<String, Object>> getLastMatches(String puuid, int start) {
 
-   
-    //  String url = String.format(
-    //         "https://americas.api.riotgames.com/lol/match/v5/matches/%s?api_key=%s",
-    //         matchId,
-    //         API_KEY
-    //     );
+        String apiKey = riotConfig.getApiKey();
+        RestTemplate restTemplate = new RestTemplate();
 
-    //     Map<String, Object> matchResponse = rest.getForObject(url, Map.class);
-    //     if (matchResponse == null) {
-    //         throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Falha ao buscar dados da partida");
-    //     }
+        try {
+            String url = "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/"
+                    + puuid
+                    + "/ids?start=" + start
+                    + "&count=10"
+                    + "&type=ranked"
+                    + "&api_key=" + apiKey;
 
-    //     double totalKills = 0;
-    //     double totalDeaths = 0;
-    //     double totalAssists = 0;
-    //     double totalDamage = 0;
-    //     double totalGold = 0;
-    //     double totalCs = 0;
-    // }
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    String.class
+            );
+
+            ObjectMapper mapper = new ObjectMapper();
+            List<String> matchIds = mapper.readValue(response.getBody(), List.class);
+
+            List<Map<String, Object>> userMatches = new ArrayList<>();
+
+            for (String matchId : matchIds) {
+
+                String matchUrl =
+                        "https://americas.api.riotgames.com/lol/match/v5/matches/"
+                                + matchId
+                                + "?api_key=" + apiKey;
+
+                ResponseEntity<String> matchResponse = restTemplate.exchange(
+                        matchUrl,
+                        HttpMethod.GET,
+                        null,
+                        String.class
+                );
+
+                Map<String, Object> matchData = mapper.readValue(matchResponse.getBody(), Map.class);
+
+                Map<String, Object> info = (Map<String, Object>) matchData.get("info");
+                List<Map<String, Object>> participants = (List<Map<String, Object>>) info.get("participants");
+
+                Map<String, Object> user = participants.stream()
+                        .filter(p -> puuid.equals(p.get("puuid")))
+                        .findFirst()
+                        .orElse(null);
+
+                if (user != null) {
+
+                    Map<String, Object> filtered = new HashMap<>();
+
+                    // ==================== INFO BÁSICA ====================
+                    filtered.put("matchId", matchId);
+                    filtered.put("championName", user.get("championName"));
+                    filtered.put("championId", user.get("championId"));
+                    filtered.put("kills", user.get("kills"));
+                    filtered.put("deaths", user.get("deaths"));
+                    filtered.put("assists", user.get("assists"));
+                    filtered.put("win", user.get("win"));
+                    filtered.put("role", user.get("teamPosition"));
+                    filtered.put("lane", user.get("lane"));
+                    filtered.put("gameDuration", info.get("gameDuration"));
+                    filtered.put("queueId", info.get("queueId"));
+                    filtered.put("gameEndTimestamp", info.get("gameEndTimestamp"));
+
+                    // ==================== SUMMONER SPELLS ====================
+                    filtered.put("summoner1Id", user.get("summoner1Id"));
+                    filtered.put("summoner2Id", user.get("summoner2Id"));
+
+                    // ==================== ITENS COMPRADOS ====================
+                    filtered.put("item0", user.get("item0"));
+                    filtered.put("item1", user.get("item1"));
+                    filtered.put("item2", user.get("item2"));
+                    filtered.put("item3", user.get("item3"));
+                    filtered.put("item4", user.get("item4"));
+                    filtered.put("item5", user.get("item5"));
+                    filtered.put("item6", user.get("item6")); // trinket
+
+                    // ==================== RUNAS ====================
+                    Map<String, Object> perks = (Map<String, Object>) user.get("perks");
+                    if (perks != null) {
+
+                        List<Map<String, Object>> styles = (List<Map<String, Object>>) perks.get("styles");
+
+                        if (styles != null && !styles.isEmpty()) {
+
+                            // PRIMARY TREE
+                            Map<String, Object> primary = styles.get(0);
+                            filtered.put("primaryStyle", primary.get("style"));
+
+                            List<Map<String, Object>> primarySelections =
+                                    (List<Map<String, Object>>) primary.get("selections");
+
+                            if (primarySelections != null && !primarySelections.isEmpty()) {
+                                filtered.put("primaryRune", primarySelections.get(0).get("perk"));
+                            }
+
+                            // SECONDARY TREE
+                            if (styles.size() > 1) {
+                                Map<String, Object> secondary = styles.get(1);
+                                filtered.put("secondaryStyle", secondary.get("style"));
+
+                                List<Map<String, Object>> secondarySelections =
+                                        (List<Map<String, Object>>) secondary.get("selections");
+
+                                if (secondarySelections != null && !secondarySelections.isEmpty()) {
+                                    filtered.put("secondaryRune", secondarySelections.get(0).get("perk"));
+                                }
+                            }
+                        }
+                    }
+
+                    userMatches.add(filtered);
+                }
+            }
+
+            return userMatches;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
 }

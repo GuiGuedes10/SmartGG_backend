@@ -1,0 +1,20 @@
+meta {
+  name: GetUserMatchesByPuuid
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://localhost:8080/users/matches/vAm3x_pxAJYHng-zDCq2LQj-DHXPwbt0jRz11UaPzq_u1hzDD98pJKryDi2DoVEk8mn0aXa45h7seg?start=0
+  body: none
+  auth: inherit
+}
+
+params:query {
+  start: 0
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
