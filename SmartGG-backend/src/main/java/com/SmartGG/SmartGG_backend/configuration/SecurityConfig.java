@@ -17,6 +17,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/users/**").permitAll() // libera todos endpoints /users/*
                 .requestMatchers("/champion/**").permitAll() // libera todos endpoints /champion/*
+                .requestMatchers("/spells/**").permitAll()
+                .requestMatchers("/runes/**").permitAll()
                 .anyRequest().authenticated() // outros endpoints exigem login
             )
             .httpBasic(); // habilita autenticação básica (opcional)

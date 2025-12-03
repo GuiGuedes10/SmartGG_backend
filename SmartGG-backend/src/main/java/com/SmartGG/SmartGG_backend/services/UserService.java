@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -24,11 +25,19 @@ import com.SmartGG.SmartGG_backend.dto.RegisterUserDTO;
 import com.SmartGG.SmartGG_backend.dto.UserResponseDTO;
 import com.SmartGG.SmartGG_backend.dto.UserWithMasteryDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.SmartGG.SmartGG_backend.services.RuneService;
 
 @Service
 public class UserService {
 
     private final RestTemplate rest = new RestTemplate();
+
+    @Autowired
+    private SpellService spellService;
+
+    @Autowired
+    private RuneService runeService;
+
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -429,8 +438,20 @@ public class UserService {
                         .orElse(null);
 
                 if (user != null) {
-
                     Map<String, Object> filtered = new HashMap<>();
+
+                    // ==================== SUMMONER SPELLS ====================
+                    Integer summoner1Id = (Integer) user.get("summoner1Id");
+                    Integer summoner2Id = (Integer) user.get("summoner2Id");
+
+                    filtered.put("summoner1Id", summoner1Id);
+                    filtered.put("summoner2Id", summoner2Id);
+
+                    String summoner1Name = spellService.getSpellName(summoner1Id);
+                    String summoner2Name = spellService.getSpellName(summoner2Id);
+
+                    filtered.put("summoner1Name", summoner1Name);
+                    filtered.put("summoner2Name", summoner2Name);
 
                     // ==================== INFO BÁSICA ====================
                     filtered.put("matchId", matchId);
@@ -446,10 +467,6 @@ public class UserService {
                     filtered.put("queueId", info.get("queueId"));
                     filtered.put("gameEndTimestamp", info.get("gameEndTimestamp"));
 
-                    // ==================== SUMMONER SPELLS ====================
-                    filtered.put("summoner1Id", user.get("summoner1Id"));
-                    filtered.put("summoner2Id", user.get("summoner2Id"));
-
                     // ==================== ITENS COMPRADOS ====================
                     filtered.put("item0", user.get("item0"));
                     filtered.put("item1", user.get("item1"));
@@ -457,12 +474,11 @@ public class UserService {
                     filtered.put("item3", user.get("item3"));
                     filtered.put("item4", user.get("item4"));
                     filtered.put("item5", user.get("item5"));
-                    filtered.put("item6", user.get("item6")); // trinket
+                    filtered.put("item6", user.get("item6"));
 
                     // ==================== RUNAS ====================
                     Map<String, Object> perks = (Map<String, Object>) user.get("perks");
                     if (perks != null) {
-
                         List<Map<String, Object>> styles = (List<Map<String, Object>>) perks.get("styles");
 
                         if (styles != null && !styles.isEmpty()) {
@@ -475,7 +491,14 @@ public class UserService {
                                     (List<Map<String, Object>>) primary.get("selections");
 
                             if (primarySelections != null && !primarySelections.isEmpty()) {
-                                filtered.put("primaryRune", primarySelections.get(0).get("perk"));
+                                String primaryRuneId = String.valueOf(primarySelections.get(0).get("perk"));
+                                filtered.put("primaryRune", primaryRuneId);
+
+                                Map<String, String> primaryRuneObj = runeService.getRuneById(primaryRuneId);
+                                if (primaryRuneObj != null) {
+                                    filtered.put("primaryRuneName", primaryRuneObj.get("name"));
+                                    filtered.put("primaryRuneIcon", primaryRuneObj.get("icon"));
+                                }
                             }
 
                             // SECONDARY TREE
@@ -487,7 +510,14 @@ public class UserService {
                                         (List<Map<String, Object>>) secondary.get("selections");
 
                                 if (secondarySelections != null && !secondarySelections.isEmpty()) {
-                                    filtered.put("secondaryRune", secondarySelections.get(0).get("perk"));
+                                    String secondaryRuneId = String.valueOf(secondarySelections.get(0).get("perk"));
+                                    filtered.put("secondaryRune", secondaryRuneId);
+
+                                    Map<String, String> secondaryRuneObj = runeService.getRuneById(secondaryRuneId);
+                                    if (secondaryRuneObj != null) {
+                                        filtered.put("secondaryRuneName", secondaryRuneObj.get("name"));
+                                        filtered.put("secondaryRuneIcon", secondaryRuneObj.get("icon"));
+                                    }
                                 }
                             }
                         }

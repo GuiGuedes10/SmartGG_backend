@@ -25,7 +25,6 @@ public class SpellService {
                 JsonNode spell = entry.getValue();
                 String key = spell.get("key").asText();
 
-                // Monta um objeto simples para armazenar no Redis
                 SpellInfo info = new SpellInfo(
                         spell.get("name").asText(),
                         spell.get("description").asText(),
@@ -59,7 +58,7 @@ public class SpellService {
         private String description;
         private String image;
 
-        public SpellInfo() {} // necessário para Jackson
+        public SpellInfo() {} 
 
         public SpellInfo(String name, String description, String image) {
             this.name = name;

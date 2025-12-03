@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import com.SmartGG.SmartGG_backend.services.ChampionService;
 import com.SmartGG.SmartGG_backend.services.SpellService;
+import com.SmartGG.SmartGG_backend.services.RuneService;
 
 import jakarta.annotation.PostConstruct;
 
@@ -20,6 +21,9 @@ public class ChampionDataInitializer {
     
     @Autowired
     private SpellService spellService;
+
+    @Autowired
+    private RuneService runeService;
 
     @PostConstruct
     public void init() throws Exception {
@@ -38,6 +42,14 @@ public class ChampionDataInitializer {
 
         spellService.saveSummonerSpellData(spellsJson);
         System.out.println("Summoner spells data loaded into Redis!");
+
+        String runeUrl = "https://ddragon.leagueoflegends.com/cdn/15.24.1/data/en_US/runesReforged.json";
+        String runeJson = readFromUrl(runeUrl);
+
+        runeService.loadRunesFromJson(runeJson);
+        System.out.println("Runes data loaded into Redis!");
+
+
     }
 
     private String readFromUrl(String url) throws Exception {
