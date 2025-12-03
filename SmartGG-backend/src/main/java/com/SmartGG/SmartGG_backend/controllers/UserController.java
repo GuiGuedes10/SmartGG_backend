@@ -63,4 +63,9 @@ public class UserController {
         return service.getUserAverages(puuid);
     }
     
+    @GetMapping("/match/details/{matchId}")
+    public List<Map<String, Object>> getMatchDetails(@PathVariable String matchId) {
+        return service.getMatchDetails(matchId);
+    }
+
 }

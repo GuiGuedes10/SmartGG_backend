@@ -614,10 +614,123 @@ public class UserService {
         averages.put("assists", totalAssists / gamesPlayed);
         averages.put("kda", (totalKills + totalAssists) / Math.max(1, totalDeaths));
         averages.put("damage", totalDamage / gamesPlayed);
-        averages.put("goldPerMinute", totalGoldPerMinute / gamesPlayed); // média do GPM
+        averages.put("goldPerMinute", totalGoldPerMinute / gamesPlayed); 
         averages.put("cs", totalCs / gamesPlayed);
 
         return averages;
     }
 
+
+    public List<Map<String, Object>> getMatchDetails(String matchId) {
+
+        String apiKey = riotConfig.getApiKey();
+        RestTemplate restTemplate = new RestTemplate();
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            String url = String.format("https://americas.api.riotgames.com/lol/match/v5/matches/%s?api_key=%s",
+                    matchId, apiKey);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, null, String.class
+            );
+
+            Map<String, Object> match = mapper.readValue(response.getBody(), Map.class);
+            Map<String, Object> info = (Map<String, Object>) match.get("info");
+
+            List<Map<String, Object>> participants =
+                    (List<Map<String, Object>>) info.get("participants");
+
+            List<Map<String, Object>> result = new ArrayList<>();
+
+            for (Map<String, Object> user : participants) {
+
+                Map<String, Object> filtered = new HashMap<>();
+
+                Integer summoner1Id = (Integer) user.get("summoner1Id");
+                Integer summoner2Id = (Integer) user.get("summoner2Id");
+
+                filtered.put("summoner1Id", summoner1Id);
+                filtered.put("summoner2Id", summoner2Id);
+
+                filtered.put("summoner1Name", spellService.getSpellName(summoner1Id));
+                filtered.put("summoner2Name", spellService.getSpellName(summoner2Id));
+
+                filtered.put("puuid", user.get("puuid"));
+                filtered.put("matchId", matchId);
+                filtered.put("championName", user.get("championName"));
+                filtered.put("championId", user.get("championId"));
+                filtered.put("kills", user.get("kills"));
+                filtered.put("deaths", user.get("deaths"));
+                filtered.put("assists", user.get("assists"));
+                filtered.put("win", user.get("win"));
+                filtered.put("role", user.get("teamPosition"));
+                filtered.put("lane", user.get("lane"));
+
+                filtered.put("gameDuration", info.get("gameDuration"));
+                filtered.put("queueId", info.get("queueId"));
+                filtered.put("gameEndTimestamp", info.get("gameEndTimestamp"));
+
+                filtered.put("item0", user.get("item0"));
+                filtered.put("item1", user.get("item1"));
+                filtered.put("item2", user.get("item2"));
+                filtered.put("item3", user.get("item3"));
+                filtered.put("item4", user.get("item4"));
+                filtered.put("item5", user.get("item5"));
+                filtered.put("item6", user.get("item6"));
+
+                Map<String, Object> perks = (Map<String, Object>) user.get("perks");
+                if (perks != null) {
+                    List<Map<String, Object>> styles =
+                            (List<Map<String, Object>>) perks.get("styles");
+
+                    if (styles != null && !styles.isEmpty()) {
+
+                        Map<String, Object> primary = styles.get(0);
+                        filtered.put("primaryStyle", primary.get("style"));
+
+                        List<Map<String, Object>> primarySelections =
+                                (List<Map<String, Object>>) primary.get("selections");
+
+                        if (primarySelections != null && !primarySelections.isEmpty()) {
+                            String primaryRuneId = String.valueOf(primarySelections.get(0).get("perk"));
+                            filtered.put("primaryRune", primaryRuneId);
+
+                            Map<String, String> r1 = runeService.getRuneById(primaryRuneId);
+                            if (r1 != null) {
+                                filtered.put("primaryRuneName", r1.get("name"));
+                                filtered.put("primaryRuneIcon", r1.get("icon"));
+                            }
+                        }
+
+                        if (styles.size() > 1) {
+                            Map<String, Object> secondary = styles.get(1);
+                            filtered.put("secondaryStyle", secondary.get("style"));
+
+                            List<Map<String, Object>> secondarySelections =
+                                    (List<Map<String, Object>>) secondary.get("selections");
+
+                            if (secondarySelections != null && !secondarySelections.isEmpty()) {
+                                String secondaryRuneId = String.valueOf(secondarySelections.get(0).get("perk"));
+                                filtered.put("secondaryRune", secondaryRuneId);
+
+                                Map<String, String> r2 = runeService.getRuneById(secondaryRuneId);
+                                if (r2 != null) {
+                                    filtered.put("secondaryRuneName", r2.get("name"));
+                                    filtered.put("secondaryRuneIcon", r2.get("icon"));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                result.add(filtered);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return List.of();
+        }
+    }
 }
