@@ -26,7 +26,6 @@ import com.SmartGG.SmartGG_backend.dto.RegisterUserDTO;
 import com.SmartGG.SmartGG_backend.dto.UserResponseDTO;
 import com.SmartGG.SmartGG_backend.dto.UserWithMasteryDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.SmartGG.SmartGG_backend.services.RuneService;
 
 @Service
 public class UserService {
